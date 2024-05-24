@@ -237,7 +237,7 @@ class UserAgentInfo{
     }
 
     private static function OSvalid(string $name): ?array{
-        if($res=static::$OSvalids[strtolower($name)]) return $res;
+        if($res=static::$OSvalids[strtolower($name)]??null) return $res;
         return null;
     }
 
