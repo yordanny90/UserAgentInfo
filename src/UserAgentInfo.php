@@ -403,7 +403,7 @@ class UserAgentInfo{
         }
         # Validaciones para linux
         if(preg_match('/(?:^|\(|;\s*)(X11|Linux)(?:\s|;|\)|$)/i', $parts['os'])){
-            if(!empty($parts['browser']) && ($linux=static::searchPart($parts['browser'], ...self::$X11_list)) && floatval($linux[1])!=0 && ($res=static::OSvalid($linux[0]))){
+            if(!empty($parts['browser']) && ($linux=static::searchPart($parts['browser'], ...self::$X11_list)) && floatval($linux[1]??'')!=0 && ($res=static::OSvalid($linux[0]))){
                 $res[1]=$linux[1];
                 return $res;
             }
