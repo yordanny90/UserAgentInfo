@@ -15,15 +15,15 @@ class UserAgentInfo{
         'windows nt 5.2'=>['Windows Server 2003'],
         'windows nt 5.1'=>['Windows XP'],
         'windows nt 5.0'=>['Windows 2000'],
-        'windows nt 4.0'=>['Windows NT 4.0'],
-        'windows nt 3.51'=>['Windows NT 3.51'],
-        'windows nt 3.5'=>['Windows NT 3.5'],
-        'windows nt 3.1'=>['Windows NT 3.1'],
+        'windows nt 4.0'=>['Windows NT','4.0'],
+        'windows nt 3.51'=>['Windows NT','3.51'],
+        'windows nt 3.5'=>['Windows NT','3.5'],
+        'windows nt 3.1'=>['Windows NT','3.1'],
         'windows 2000'=>['Windows 2000'],
         'windows nt'=>['Windows NT'],
-        'windows 3.1'=>['Windows 3.1'],
-        'windows 3.9'=>['Windows 3.9'],
-        'winnt4.0'=>['Windows NT', '4.0'],
+        'windows 3.1'=>['Windows','3.1'],
+        'windows 3.9'=>['Windows','3.9'],
+        'winnt4.0'=>['Windows NT','4.0'],
         'windows xp'=>['Windows XP'],
         'windows me'=>['Windows ME'],
         'win 9x 4.90'=>['Windows ME'],
@@ -34,7 +34,8 @@ class UserAgentInfo{
         'win16'=>['Windows 16'],
         'win32'=>['Windows 32'],
         'windows ce'=>['Windows CE'],
-        'windows phone os'=>['Windows Phone OS'],
+        'windows phone'=>['Windows Phone'],
+        'windows phone os'=>['Windows Phone'],
         'windows mobile'=>['Windows Mobile'],
         'cygwin'=>['Windows'],
         'winnt'=>['Windows'],
@@ -73,6 +74,8 @@ class UserAgentInfo{
         'netbsd'=>['NetBSD'],
         'syllable'=>['Syllable'],
         'dragonfly'=>['DragonFly BSD'],
+        'rim tablet os'=>['RIM Tablet OS'],
+        'meego'=>['MeeGo'],
         #### X11_list ####
         'fedora'=>['Fedora'],
         'centos'=>['CentOS'],
@@ -130,12 +133,16 @@ class UserAgentInfo{
         'huaweibrowser'=>'Huawei Browser',
         'samsungbrowser'=>'Samsung Browser',
         'browserng'=>'Nokia Browser',
+        'nokiabrowser'=>'Nokia Browser',
         'chrome'=>'Google Chrome',
+        'chromeplus'=>'ChromePlus',
         'crios'=>'Google Chrome',
-        'chromium'=>'Google Chrome',
+        'chromium'=>'Chromium',
         'msie'=>'Internet Explorer',
+        'iemobile'=>'Internet Explorer Mobile',
         'firefox'=>'Firefox',
         'gecko/firefox'=>'Firefox',
+        'fxios'=>'Firefox',
         'fennec'=>'Firefox',
         'icecat'=>'IceCat',
         'minimo'=>'Mini Mozilla',
@@ -149,7 +156,6 @@ class UserAgentInfo{
         'edge'=>'Microsoft Edge',
         'opr'=>'Opera',
         'opera'=>'Opera',
-        'presto'=>'Presto',
         'netscape'=>'Netscape',
         'netscape6'=>'Netscape',
         'maxthon'=>'Maxthon',
@@ -172,6 +178,7 @@ class UserAgentInfo{
         'sunrisebrowser'=>'Sunrise Browser',
         'midori'=>'Midori',
         'rockmelt'=>'RockMelt',
+        'abrowse'=>'ABrowse',
     ];
 
     protected $userAgent;
@@ -225,24 +232,6 @@ class UserAgentInfo{
         return $this->explain['base'] ?? null;
     }
 
-    public function getBrowserList(bool $exclude=true): ?array{
-        if(!$this->getParts() || !isset($this->explain['parts']['browser'])) return null;
-        $br=$this->explain['parts']['browser'];
-        $list=[];
-        while($br){
-            if($b=static::extractPart($br, true, $next)){
-                $br=$next;
-                if($exclude && static::excludeBrowser($b[0])) continue;
-                $list[$b[0]]=$b;
-            }
-            else{
-                break;
-            }
-        }
-        if(!count($list)) $list=null;
-        return $list;
-    }
-
     public static function my(): self{
         return new self($_SERVER['HTTP_USER_AGENT'] ?? '');
     }
@@ -262,6 +251,7 @@ class UserAgentInfo{
         if(preg_match('/^(?:([\w \.\/\-\+]*\w)\s?'.//base
             '(?:\[([\w\-]+)\]\s?)?)?'.//lang
             '(?:(?:\(\1\s?)*\s?\(([^\(\)]+(?:\s?\([^\(\)]+\))?[^\(\)]*)\))'.//os
+//            '(?:(?:\(\1\s?)*\s?\(((?:[^\(\)]+\()?[^\(\)]+(?:\s?\([^\(\)]+\))?[^\(\)]*(?:\)[^\(\)]+)?)\))'.//os
             '(?:;\s*(rv\:[\w\.]+)\)?)?'.//rv
             '(?:\s?(\w{2}(?:[\-_]\w{2})?)[,;])?'.//lang2
             '((?:\s*(?:[\/\w\.\+\-]+)(?:\s?\([^\(\)]*\))?)*)?'.//browser
@@ -320,6 +310,13 @@ class UserAgentInfo{
                 $name,
                 $ver
             ];
+            if($ver==='' && empty($m[2]) && floatval($next)!=0){
+                if(($sub=static::extractPart($next, $addExtra, $snext)) && $sub[1]===''){
+                    $res[1]=$sub[0];
+                    if(isset($sub[2])) $m[2]=$sub[2];
+                    $next=$snext;
+                }
+            }
             if($addExtra) $res[2]=trim($m[2]);
             return $res;
         }
@@ -355,71 +352,115 @@ class UserAgentInfo{
         $res['parts']=&$parts;
         if(isset($parts['base'])) $res['base']=static::extractPart($parts['base']);
         if(isset($parts['os'])) $res['os']=static::_os($parts);
-        if(isset($parts['browser'])) $res['browser']=static::_browser($parts['browser'], true);
+        $res['browser']=static::_browser($parts, true);
         $res=array_filter($res);
         return $res;
     }
 
-    private static function _browser(string $browser_part, $onlyValid=true): ?array{
-        $br=$browser_part;
+    private static function _browser(array $parts, $onlyValid=true): ?array{
         $invalid=null;
         $ver=null;
-        while($br){
-            if($b=static::extractPart($br, true, $next)){
-                $br=$next;
-                $n=strtolower($b[0]);
-                if($n=='version'){
-                    $ver=$b[1];
-                    continue;
-                }
-                if(static::excludeBrowser($b[0])) continue;
-                if(!$onlyValid && !isset($invalid) && $b[0] && $b[1]) $invalid=[$b[0], $b[1]];
-                if(isset($ver) && in_array($n, ['chrome', 'crios'])) continue;
-                if(($alias=static::$validBrowsers[$n] ?? null)){
-                    return [
-                        $alias,
-                        $ver ?? $b[1]
-                    ];
-                }
+        $br_version=['safari'];
+        $def=null;
+        $br_extends=['chrome','safari'];
+        $validate=function(array $b)use(&$ver, &$br_version, &$invalid, &$onlyValid, &$def, &$br_extends){
+            $n=strtolower($b[0]);
+            if($n=='version'){
+                $ver=$b[1];
+                return null;
             }
-            else{
-                break;
+            if(($def && in_array($n, $br_extends)) || static::excludeBrowser($b[0])) return null;
+            if(!$onlyValid && !isset($invalid) && $b[0] && $b[1]) $invalid=[$b[0], $b[1]];
+            if(($alias=static::$validBrowsers[$n] ?? null)){
+                return [
+                    $alias,
+                    in_array($n, $br_version)?$ver:$b[1]
+                ];
+            }
+            return null;
+        };
+        if(!empty($parts['base']) && $b=static::extractPart($parts['base'], true)){
+            if($res=$validate($b)){
+                if(!$def)
+                    $def=$res;
             }
         }
-        if($onlyValid) return null;
+        if(empty($parts['browser'])){
+            $brs=array_reverse(array_filter(array_map('trim', explode(';', str_replace(')', ');', $parts['os'] ?? '')))));
+        }
+        else{
+            $brs=[$parts['browser']];
+        }
+        foreach($brs AS $br){
+            while($br){
+                if($b=static::extractPart($br, true, $next)){
+                    $br=$next;
+                    if($res=$validate($b)){
+                        if(in_array(strtolower($b[0]), $br_extends)){
+                            if(!$def) $def=$res;
+                        }
+                        else{
+                            return $res;
+                        }
+                    }
+                }
+                else{
+                    break;
+                }
+            }
+        }
+        if($onlyValid) return $def;
         return $invalid;
     }
 
     private static function _os(array $parts): ?array{
         if(empty($parts['os'])) return null;
-        if(preg_match('/(?:^|;\s*)(Android) (\d+(?:\.\d+)*)(?:\s|;|$)/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+        # Validaciones para windows
+        if(preg_match('/(?:^|\(|;|,)\s*(WinNT(?:\d+(?:\.\d+)?)?|Win98|Win95|Win 9x (?:\d+(?:\.\d+)?))(?:\s|;|\)|$)/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+            return $res;
+        }
+        elseif(preg_match('/(?:^|\(|;|,)\s*(Windows(?: (Phone|Phone OS|98|95|NT|CE|ME|2000|Mobile|XP))?)\s?(\d+(?:\.\d+)?)?(?:\s|;|\)|$)/i', $parts['os'], $m)){
+            if(!empty($m[3]) && ($res=static::OSvalid($m[1].' '.$m[3]))){
+                return $res;
+            }
+            elseif(!empty($m[3]) && ($res=static::OSvalid($m[1].' '.number_format($m[3], 1)))){
+                return $res;
+            }
+            elseif(($res=static::OSvalid($m[1]))){
+                if(!empty($m[3]) && empty($res[1]))
+                    $res[1]=$m[3];
+                return $res;
+            }
+        }
+        # Validaciones para android
+        if(preg_match('/(?:^|;)\s*(Android) (\d+(?:\.\d+)*)(?:\s|;|$)/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
             if(!empty($m[2])) $res[1]=$m[2];
             return $res;
         }
-        elseif(preg_match('/(?:^|;\s*)(Android)(?:\s|;|$)/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+        elseif(preg_match('/(?:^|;)\s*(Android)(?:\s|;|$)/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
             return $res;
         }
-        elseif(preg_match('/(?:^|;\s*)(CrOS) (?:\w+)\s?(\d+(?:\.\d+)*)?(?:\s|;|$)/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+        elseif(preg_match('/(?:^|;)\s*(CrOS) (?:\w+)\s?(\d+(?:\.\d+)*)?(?:\s|;|$)/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
             if(!empty($m[2])) $res[1]=$m[2];
             return $res;
         }
         # Validaciones para mac
-        if(preg_match('/(?:^|;\s*)(?:CPU|CPU iPhone) OS ((?:\d+[\_\.]?)+) (like Mac OS X)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[2]))){
+        if(preg_match('/(?:^|;)\s*(?:CPU|CPU iPhone) OS ((?:\d+[\_\.]?)+) (like Mac OS X)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[2]))){
             if(!empty($m[1])) $res[1]=str_replace('_', '.', $m[1]);
             return $res;
         }
-        elseif(preg_match('/(?:^|;\s*)(?:\w+ )?(Mac OS X(?: [\w+\-]+)?) ((?:\d+[\_\.]?)+)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+        elseif(preg_match('/(?:^|;)\s*(?:\w+ )?(Mac OS X(?: [\w+\-]+)?) ((?:\d+[\_\.]?)+)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
             if(!empty($m[2])) $res[1]=str_replace('_', '.', $m[2]);
             return $res;
         }
-        elseif(preg_match('/(?:^|;\s*)(?:\w+ )?(Mac OS X(?: [\w+\-]+)?)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+        elseif(preg_match('/(?:^|;)\s*(?:\w+ )?(Mac OS X(?: [\w+\-]+)?)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
             return $res;
         }
-        elseif(preg_match('/(?:^|;\s*)(?:\w+ )?(Mac OS)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+        elseif(preg_match('/(?:^|;)\s*(?:\w+ )?(Mac OS)(?:;|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
             return $res;
         }
         # Validaciones para linux
-        if(preg_match('/(?:^|\(|;\s*)(X11|Linux)(?:\s|;|\)|$)/i', $parts['os'])){
+        if(preg_match('/(?:^|\(|;)\s*(X11|Linux)(?:\s|;|\)|$)/i', $parts['os'])){
             if(!empty($parts['browser']) && ($linux=static::searchPart($parts['browser'], ...self::$X11_list)) && floatval($linux[1] ?? '')!=0 && ($res=static::OSvalid($linux[0]))){
                 $res[1]=$linux[1];
                 return $res;
@@ -428,33 +469,22 @@ class UserAgentInfo{
                 return $res;
             }
         }
-        # Validaciones para windows
-        if(preg_match('/(?:^|\(|;|,)\s*(WinNT|Win98|Win95|Win 9x|Windows (?:Phone OS|98|95|NT|CE|ME|2000|Mobile|XP))\s?(\d+(?:\.\d+)*)?(?:\s|;|\)|$)/i', $parts['os'], $m)){
-            if(!empty($m[2]) && ($res=static::OSvalid($m[1].' '.$m[2]))){
-                return $res;
-            }
-            elseif(($res=static::OSvalid($m[1]))){
-                if(!empty($m[2])) $res[1]=$m[2];
-                return $res;
-            }
-        }
         # Validaciones para otros OS
         if(preg_match('/(?:^|\(|;\s*)(SymbianOS)\/(\d+(?:\.\d+)*)?(?:\s*;|\)|$)/', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
             if(!empty($m[2])) $res[1]=$m[2];
             return $res;
         }
-        $os=array_reverse(array_filter(array_map('trim', explode(';', str_replace(['(', ')'], ';', $parts['os'] ?? '')))));
+        $os=array_reverse(array_filter(array_map('trim', explode(';', str_replace(['(', ')', ','], ';', $parts['os'] ?? '')))));
         $last=null;
         foreach($os as $name){
             if(($res=static::OSvalid($name))){
                 return $res;
             }
             if(is_numeric($name) ||
-                in_array($name, ['N', 'U', 'I', 'Nav', 'textmode', 'compatible', 'SV1', 'X11', 'i686', 'x86_64', 'mimic',]) ||
-                preg_match('/\b(Warp \d|Europe\/|MSIE|https?\:\/\/)\b/', $name)){
+                in_array($name, ['N', 'U', 'I', '--', 'Nav', 'textmode', 'compatible', 'SV1', 'X11', 'i686', 'x86_64', 'mimic',])){
                 continue;
             }
-            if(preg_match('/(?: |^)((?:([a-z]\w*) )?(\w+))[\s\/](\d+(?:\.\d+)+)(?:\_|\-|\s|$)/i', $name, $m) || preg_match('/(?: |^)((?:([a-z]\w*) )?(\w+))(?:\_|\-|\s|$)/i', $name, $m)){
+            if(preg_match('/(?:\b|^)((?:([a-z]\w*) )?(\w+(?: OS)?))(?:[\s\/](\d+(?:\.\d\w*)*)?)?(?:\/|\_|\-|\s|$)/i', $name, $m)){
                 $ver=$m[4] ?? null;
                 unset($m[4]);
                 unset($m[0]);
@@ -463,7 +493,7 @@ class UserAgentInfo{
                     if(!empty($ver) && ($res=static::OSvalid($n.' '.$ver))){
                         return $res;
                     }
-                    elseif(($res=static::OSvalid($n))){
+                    elseif(strtolower($n)!=='linux' && ($res=static::OSvalid($n))){
                         if(!empty($ver)){
                             $res[1]=$ver;
                             return $res;
@@ -472,8 +502,12 @@ class UserAgentInfo{
                         break;
                     }
                 }
-                if($res) continue;
-                unset($n, $res);
+                unset($ver, $m, $n, $res);
+                continue;
+            }
+            if(preg_match('/^([a-z]+)(\d+(?:\.\d+)+)$/i', $name, $m) && ($res=static::OSvalid($m[1]))){
+                if(!empty($m[2])) $res[1]=$m[2];
+                return $res;
             }
         }
         if($last){
@@ -483,7 +517,8 @@ class UserAgentInfo{
             if(!empty($m[2])) $res[1]=$m[2];
             return $res;
         }
-        if(preg_match('/\b(Linux)\b/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+        if(preg_match('/\b(Linux)(?: (\d+(?:\.\w+)*))?\b/i', $parts['os'], $m) && ($res=static::OSvalid($m[1]))){
+            if(!empty($m[2])) $res[1]=$m[2];
             return $res;
         }
         return null;
