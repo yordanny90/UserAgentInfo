@@ -1,7 +1,5 @@
 <?php
-set_include_path(__DIR__.'/../src');
-spl_autoload_extensions('.php');
-spl_autoload_register();
+include '../src/UserAgentInfo.php';
 
 if(php_sapi_name()!='cli') echo '<pre>';
 $list=fopen(__DIR__.'/useragent_list.txt', 'r');
