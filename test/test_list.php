@@ -9,6 +9,6 @@ $count=0;
 while(is_string($userAgent=fgets($list))){
     ++$count;
     $ua=new UserAgentInfo($userAgent);
-    echo "OS: ".implode(' ', $ua->getOS()??['N/R'])."\tBrowser: ".implode(' ', $ua->getBrowser()??['N/R'])."\n";
+    echo ($ua->getOS()[0]??'--')."\t".($ua->getOS()[1]??'')."\t".($ua->getBrowser()[0]??'--')."\t".($ua->getBrowser()[1]??'')."\t".trim($ua->getUserAgent())."\n";
 }
-echo 'Items: '.$count.' Time: '.(microtime(true)-$t);
+echo "\n".'Items: '.$count.' Time: '.(microtime(true)-$t);
