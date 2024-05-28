@@ -12,6 +12,7 @@ class UserAgentInfo{
         'windows nt 6.2'=>['Windows 8'],
         'windows nt 6.1'=>['Windows 7'],
         'windows nt 6.0'=>['Windows Vista'],
+        'windows nt 6'=>['Windows Vista'],
         'windows nt 5.2'=>['Windows Server 2003'],
         'windows nt 5.1'=>['Windows XP'],
         'windows nt 5.0'=>['Windows 2000'],
@@ -138,6 +139,7 @@ class UserAgentInfo{
         'chromeplus'=>'ChromePlus',
         'crios'=>'Google Chrome',
         'chromium'=>'Chromium',
+        'iron'=>'SRWare Iron',
         'msie'=>'Internet Explorer',
         'iemobile'=>'Internet Explorer Mobile',
         'firefox'=>'Firefox',
@@ -145,6 +147,8 @@ class UserAgentInfo{
         'fxios'=>'Firefox',
         'fennec'=>'Firefox',
         'icecat'=>'IceCat',
+        'iceweasel'=>'Iceweasel',
+        'kazehakase'=>'Kazehakase',
         'minimo'=>'Mini Mozilla',
         'lunascape'=>'Lunascape',
         'safari'=>'Safari',
@@ -156,6 +160,7 @@ class UserAgentInfo{
         'edge'=>'Microsoft Edge',
         'opr'=>'Opera',
         'opera'=>'Opera',
+        'opt'=>'Opera Touch',
         'netscape'=>'Netscape',
         'netscape6'=>'Netscape',
         'maxthon'=>'Maxthon',
@@ -248,17 +253,16 @@ class UserAgentInfo{
     }
 
     static function parts($userAgent): ?array{
-        if(preg_match('/^(?:([\w \.\/\-\+]*\w)\s?'.//base
-            '(?:\[([\w\-]+)\]\s?)?)?'.//lang
-            '(?:(?:\(\1\s?)*\s?\(([^\(\)]+(?:\s?\([^\(\)]+\))?[^\(\)]*)\))'.//os
-//            '(?:(?:\(\1\s?)*\s?\(((?:[^\(\)]+\()?[^\(\)]+(?:\s?\([^\(\)]+\))?[^\(\)]*(?:\)[^\(\)]+)?)\))'.//os
+        if(preg_match('/^([\w \.\/\-\+]*\w)?'.//base
+            '(?:\s?\[([\w\-]+)\])?'.//lang
+            '(?:\s?(?:\(\1)*\s?\(((?:[^\(\)]+(?:\s?\([^\(\)]+\))?)*[^\(\)]*)(?:\)|$))'.//os
             '(?:;\s*(rv\:[\w\.]+)\)?)?'.//rv
             '(?:\s?(\w{2}(?:[\-_]\w{2})?)[,;])?'.//lang2
             '((?:\s*(?:[\/\w\.\+\-]+)(?:\s?\([^\(\)]*\))?)*)?'.//browser
             '(?:\s?\[(\w{2}(?:[\-_]\w{2})?)\])?'.//lang3
-            '(.*)$/i'//extra
+            '(.+)?$/i'//extra
             , $userAgent, $data)){
-            $res=array_map('trim', array_combine([
+            $keys=[
                 '_',
                 'base',
                 'lang',
@@ -268,7 +272,8 @@ class UserAgentInfo{
                 'browser',
                 'lang3',
                 'extra',
-            ], $data));
+            ];
+            $res=array_map('trim', array_combine(array_intersect_key($keys, $data), $data));
             unset($data);
             unset($res['_']);
             if(!empty($res['os']) && preg_match('/^(.*)(?:^|;)\s?(rv\:[\w\.]+)$/', $res['os'], $os)){
@@ -362,7 +367,7 @@ class UserAgentInfo{
         $ver=null;
         $br_version=['safari'];
         $def=null;
-        $br_extends=['chrome','safari'];
+        $br_extends=['chrome','safari','firefox'];
         $validate=function(array $b)use(&$ver, &$br_version, &$invalid, &$onlyValid, &$def, &$br_extends){
             $n=strtolower($b[0]);
             if($n=='version'){
@@ -379,19 +384,7 @@ class UserAgentInfo{
             }
             return null;
         };
-        if(!empty($parts['base']) && $b=static::extractPart($parts['base'], true)){
-            if($res=$validate($b)){
-                if(!$def)
-                    $def=$res;
-            }
-        }
-        if(empty($parts['browser'])){
-            $brs=array_reverse(array_filter(array_map('trim', explode(';', str_replace(')', ');', $parts['os'] ?? '')))));
-        }
-        else{
-            $brs=[$parts['browser']];
-        }
-        foreach($brs AS $br){
+        $analyze=function($br)use(&$validate, &$br_extends, &$def){
             while($br){
                 if($b=static::extractPart($br, true, $next)){
                     $br=$next;
@@ -408,9 +401,30 @@ class UserAgentInfo{
                     break;
                 }
             }
+            return null;
+        };
+        if(!empty($parts['base']) && $b=static::extractPart($parts['base'], true)){
+            if($res=$validate($b)){
+                if(!$def) $def=$res;
+            }
         }
-        if($onlyValid) return $def;
-        return $invalid;
+        if(!empty($parts['browser'])){
+            if($res=$analyze($parts['browser'])){
+                return $res;
+            }
+        }
+        if($def) return $def;
+        if(!empty($parts['os'])){
+            $brs=array_reverse(array_filter(array_map('trim', explode(';', str_replace(')', ');', $parts['os'] ?? '')))));
+            foreach($brs AS $br){
+                if($res=$analyze($br)){
+                    return $res;
+                }
+            }
+        }
+        if($def) return $def;
+        if(!$onlyValid) return $invalid;
+        return null;
     }
 
     private static function _os(array $parts): ?array{
