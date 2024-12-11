@@ -283,7 +283,7 @@ class UserAgentInfo{
 
     private static function fixVersion(array $row){
         if(isset($row[1])){
-            if(preg_match('/^[v]?(\d+(?:\.\d+)?).*/', $row[1], $m)){
+            if(preg_match('/^[v]?(\d+(?:\.\d+)?).*/', str_replace('_', '.', $row[1]), $m)){
                 $row[1]=$m[1];
             }
             else{
@@ -487,9 +487,9 @@ class UserAgentInfo{
             return null;
         }
         $str=$n;
-        if(preg_match('/^(.*)\s(\d[\d\.\_]*)(\s.*)?$/', $str, $m)){
+        if(preg_match('/^(.*)\s(\d[\d\.\_]*)(\s.*)?$/', strtolower($n.' '.$ver), $m)){
             $n=$m[1].($m[3]??'');
-            $ver=str_replace('_', '.', $m[2]);
+            $ver=$m[2];
             if($browser=static::$browser_valids[$n] ?? null){
                 $browser=array_filter([$browser,$ver]);
                 return $browser;
