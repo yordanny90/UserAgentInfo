@@ -8,7 +8,7 @@ $t=microtime(true);
 $count=0;
 while(is_string($userAgent=fgets($list))){
     ++$count;
-    $ua=new UserAgentInfo($userAgent);
-    echo ($ua->getOS()[0]??'--')."\t".($ua->getOS()[1]??'')."\t".($ua->getBrowser()[0]??'--')."\t".($ua->getBrowser()[1]??'')."\t".trim($ua->getUserAgent())."\n";
+    $ua=UserAgentInfo::explain($userAgent);
+    echo $ua->text_D()."\t".trim($ua->userAgent())."\n";
 }
 echo "\n".'Items: '.$count.' Time: '.(microtime(true)-$t);
